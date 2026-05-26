@@ -4,6 +4,7 @@ from dto import AvitoConfig
 
 from parser.export.base import ResultStorage
 from parser.export.excel import ExcelStorage
+from parser.export.json_storage import JsonStorage
 from parser.export.composite import CompositeResultStorage, NullResultStorage
 
 
@@ -17,6 +18,10 @@ def build_result_storage(
     if config.save_xlsx:
         file_path = _build_excel_path(config, link_index)
         storages.append(ExcelStorage(file_path))
+
+    if config.save_json:
+        dir_path = _build_json_dir(config, link_index)
+        storages.append(JsonStorage(dir_path))
 
     if not storages:
         return NullResultStorage()
@@ -36,3 +41,11 @@ def _build_excel_path(config: AvitoConfig, link_index: int | None) -> Path:
 
     # один файл для всего парсинга
     return base_dir / "avito.xlsx"
+
+def _build_json_dir(config: AvitoConfig, link_index: int | None) -> Path:
+    base_dir = Path(config.output_dir)
+
+    if config.one_file_for_link and link_index is not None:
+        return base_dir / f"link_{link_index + 1}"
+
+    return base_dir

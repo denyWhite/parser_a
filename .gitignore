@@ -1,2 +1,8 @@
 # created by virtualenv automatically
 .secret.txt
+local_config.toml
+/result/
+/database.db
+/logs/
+/.idea/
+/storage/
