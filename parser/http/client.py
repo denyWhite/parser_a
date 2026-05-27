@@ -55,6 +55,7 @@ class HttpClient:
 
     def request(self, method: str, url: str, **kwargs):
         last_exc = None
+        last_status = None
 
         for attempt in range(1, self.max_retries + 1):
             try:
@@ -77,6 +78,7 @@ class HttpClient:
 
                 # === обработка блокировок ===
                 if response.status_code in (401, 403, 429):
+                    last_status = response.status_code
                     self._block_attempts += 1
 
                     logger.warning(
@@ -103,7 +105,10 @@ class HttpClient:
 
             except requests.RequestsError as e:
                 last_exc = e
+                last_status = None
                 logger.warning(f"Request error (attempt {attempt}): {e}")
                 time.sleep(self.retry_delay)
 
-        raise RuntimeError(f"HTTP request failed after retries: {last_exc}") from last_exc
+        if last_exc:
+            raise RuntimeError(f"HTTP request failed after retries: {last_exc}") from last_exc
+        raise RuntimeError(f"HTTP request failed after retries: all {self.max_retries} attempts blocked with HTTP {last_status}")
