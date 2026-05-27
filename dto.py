@@ -57,4 +57,6 @@ class AvitoConfig:
     timeout: int = 20
     block_threshold: int = 3
     truncate_viewed_on_every_run: bool = False
+    betterstack_token: Optional[str] = None
+    betterstack_url: Optional[str] = None
 

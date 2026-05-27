@@ -8,6 +8,7 @@ from bs4 import BeautifulSoup
 from loguru import logger
 from pydantic import ValidationError
 
+from betterstack_sink import BetterStackSink
 from common_data import HEADERS
 from db_service import SQLiteDBHandler
 from dto import Proxy, AvitoConfig
@@ -27,6 +28,17 @@ from version import VERSION
 DEBUG_MODE = False
 
 logger.add("logs/app.log", rotation="5 MB", retention="5 days", level="DEBUG")
+
+
+def setup_betterstack_logging(config: AvitoConfig):
+    if config.betterstack_token and config.betterstack_url:
+        logger.add(
+            BetterStackSink(token=config.betterstack_token, url=config.betterstack_url),
+            level="WARNING",
+            enqueue=True,
+            format="{message}",
+        )
+        logger.info("BetterStack logging enabled")
 
 
 class AvitoParse:
@@ -309,6 +321,8 @@ if __name__ == "__main__":
     except Exception as err:
         logger.error(f"Ошибка загрузки конфига: {err}")
         exit(1)
+
+    setup_betterstack_logging(config)
 
     while True:
         try:
