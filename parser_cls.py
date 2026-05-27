@@ -27,6 +27,7 @@ from version import VERSION
 
 DEBUG_MODE = False
 
+logger.remove(0)  # remove default stderr sink to avoid duplicates when stderr is redirected
 logger.add("logs/app.log", rotation="5 MB", retention="5 days", level="DEBUG")
 
 
