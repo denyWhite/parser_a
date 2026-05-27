@@ -5,8 +5,9 @@ import tomli_w
 
 from dto import AvitoConfig
 
-_LOCAL_CONFIG = Path("local_config.toml")
-_DEFAULT_CONFIG = Path("config.toml")
+_BASE_DIR = Path(__file__).parent
+_LOCAL_CONFIG = _BASE_DIR / "local_config.toml"
+_DEFAULT_CONFIG = _BASE_DIR / "config.toml"
 
 
 def _resolve_config_path(path: str) -> Path:
