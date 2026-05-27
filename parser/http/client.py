@@ -106,4 +106,4 @@ class HttpClient:
                 logger.warning(f"Request error (attempt {attempt}): {e}")
                 time.sleep(self.retry_delay)
 
-        raise RuntimeError("HTTP request failed after retries") from last_exc
+        raise RuntimeError(f"HTTP request failed after retries: {last_exc}") from last_exc

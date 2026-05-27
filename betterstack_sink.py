@@ -1,3 +1,4 @@
+import traceback
 import urllib.request
 import json
 import ssl
@@ -15,6 +16,12 @@ class BetterStackSink:
 
     def __call__(self, message):
         record = message.record
+
+        exc_text = None
+        if record["exception"] is not None:
+            exc_type, exc_value, exc_tb = record["exception"]
+            exc_text = "".join(traceback.format_exception(exc_type, exc_value, exc_tb))
+
         payload = json.dumps({
             "dt": record["time"].astimezone(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC"),
             "message": record["message"],
@@ -22,6 +29,7 @@ class BetterStackSink:
             "module": record["module"],
             "function": record["function"],
             "line": record["line"],
+            **({"exception": exc_text} if exc_text else {}),
         }).encode()
 
         req = urllib.request.Request(
