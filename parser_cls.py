@@ -312,12 +312,16 @@ if __name__ == "__main__":
 
     while True:
         try:
+            logger.warning(f"Начинаем цикл парсинга")
+            if config.truncate_viewed_on_every_run:
+                SQLiteDBHandler().truncate_viewed()
+                logger.info("Таблица viewed очищена (truncate_viewed_on_every_run=true)")
             parser = AvitoParse(config)
             parser.parse()
             if config.one_time_start:
                 logger.info("Парсинг завершен т.к. включён one_time_start в настройках")
                 break
-            logger.info(f"Парсинг завершен. Пауза {config.pause_general} сек")
+            logger.warning(f"Завершен цикл парсинга. Пауза {config.pause_general} сек")
             time.sleep(config.pause_general)
         except Exception as err:
             logger.exception(err)

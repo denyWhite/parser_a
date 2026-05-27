@@ -58,6 +58,12 @@ class SQLiteDBHandler:
             )
             conn.commit()
 
+    def truncate_viewed(self):
+        """Удаляет все записи из таблицы viewed."""
+        with sqlite3.connect(self.db_name) as conn:
+            conn.cursor().execute("DELETE FROM viewed")
+            conn.commit()
+
     def record_exists(self, record_id, price):
         """Проверяет, существует ли запись с заданными id и price."""
         with sqlite3.connect(self.db_name) as conn:
