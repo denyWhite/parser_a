@@ -1,6 +1,7 @@
 import json
 import random
 import re
+import subprocess
 import time
 from datetime import datetime, timedelta
 
@@ -333,6 +334,17 @@ if __name__ == "__main__":
                 logger.info("Таблица viewed очищена (truncate_viewed_on_every_run=true)")
             parser = AvitoParse(config)
             parser.parse()
+            try:
+                result = subprocess.run(
+                    ["php", "/var/www/diogen/bin/console", "etl:avito:cycle"],
+                    capture_output=True, text=True, timeout=300
+                )
+                if result.returncode != 0:
+                    logger.error(f"etl:avito:cycle завершился с ошибкой (код {result.returncode}): {result.stderr.strip()}")
+                else:
+                    logger.warning(f"etl:avito:cycle выполнен успешно: {result.stdout.strip()}")
+            except Exception as etl_err:
+                logger.error(f"Не удалось запустить etl:avito:cycle: {etl_err}")
             if config.one_time_start:
                 logger.info("Парсинг завершен т.к. включён one_time_start в настройках")
                 break
