@@ -113,96 +113,111 @@ class AvitoParse:
 
     def parse(self):
         if not self.config.one_file_for_link:
-            # один storage на весь парсинг
             self.result_storage = build_result_storage(config=self.config)
 
         for _index, url in enumerate(self.config.urls):
-
-            if self.config.one_file_for_link:
-                # storage для этой ссылки
-                self.result_storage = build_result_storage(
-                    config=self.config,
-                    link_index=_index
-                )
-            api_params = None
-            context = None
-
-            for i in range(0, self.config.count):
-                logger.info(f"page={i + 1}")
-                if self.stop_event and self.stop_event.is_set():
-                    return
-                if DEBUG_MODE:
-                    html_code = open("may.txt", "r", encoding="utf-8").read()
-                else:
-                    if i == 0:
-                        html_code = self.fetch_data(url=url)
-                    else:
-                        if api_params and context:
-                            json_data = self.fetch_api_data(api_params, page=i + 1, context=context)
-                        else:
-                            logger.info("Т.к. 1-я страница была неудачной - дальше смотреть не можем")
-                            break
-
-                if not html_code:
-                    logger.warning(
-                        f"Не удалось получить HTML для {url}, пробую заново через {self.config.pause_between_links} сек.")
-                    time.sleep(self.config.pause_between_links)
-                    continue
-
-                data_from_page = self.find_json_on_page(html_code=html_code)
-
-                if i == 0:
-                    search_core = data_from_page.get("searchCore") or {}
-                    context = data_from_page.get("context")
-
-                    api_params = build_api_params(search_core)
-
+            for attempt in range(1, self.config.max_count_of_retry + 1):
                 try:
-                    if i == 0:
-                        catalog = data_from_page.get("catalog") or {}
-                    else:
-                        catalog = json_data.get("catalog") or json_data.get("result", {}).get("catalog") or {}
-
-                    ads_models = ItemsResponse(**catalog)
-                except ValidationError as err:
-                    logger.error(f"При валидации объявлений произошла ошибка: {err}")
-                    continue
-
-                ads = self._clean_null_ads(ads=ads_models.items)
-
-                logger.info(f"Объявлений перед чисткой {len(ads)}")
-
-                ads = self._add_seller_to_ads(ads=ads)
-
-                ads = self._add_promotion_to_ads(ads=ads)
-
-                if not ads:
-                    logger.info("Объявления закончились, заканчиваю работу с данной ссылкой")
+                    self._parse_url(url=url, index=_index)
                     break
-
-                filter_ads = self.filter_ads(ads=ads)
-
-                self.notifier.notify_many(ads=filter_ads)
-
-                # Просмотры
-                filter_ads = self.parse_views(ads=filter_ads)
-
-                # Телефоны
-                filter_ads = self.parse_phone(ads=filter_ads)
-
-                if filter_ads:
-                    logger.info(f"Сохраняю {len(filter_ads)} объявлений")
-                    self.result_storage.save(filter_ads)
-                    self.__save_viewed(ads=filter_ads)
-
-                logger.info(f"Пауза {self.config.pause_between_links} сек.")
-                time.sleep(self.config.pause_between_links)
+                except Exception as err:
+                    logger.error(
+                        f"URL {url} — ошибка на попытке {attempt}/{self.config.max_count_of_retry}: {err}"
+                    )
+                    if attempt < self.config.max_count_of_retry:
+                        logger.info(f"Повтор через {self.config.retry_delay} сек.")
+                        time.sleep(self.config.retry_delay)
+                    else:
+                        logger.critical(f"URL {url} — все попытки исчерпаны, перехожу к следующей ссылке")
 
         logger.info(f"Хорошие запросы: {self.good_request_count}шт, плохие: {self.bad_request_count}шт")
 
         if self.config.one_time_start:
             self.notifier.notify(message="Парсинг Авито завершён. Все ссылки обработаны")
             self.stop_event = True
+
+    def _parse_url(self, url: str, index: int):
+        if self.config.one_file_for_link:
+            self.result_storage = build_result_storage(config=self.config, link_index=index)
+
+        ads_in_link = []
+        api_params = None
+        context = None
+
+        for i in range(0, self.config.count):
+            logger.info(f"page={i + 1}")
+            if self.stop_event and self.stop_event.is_set():
+                return
+            if DEBUG_MODE:
+                html_code = open("may.txt", "r", encoding="utf-8").read()
+            else:
+                if i == 0:
+                    html_code = self.fetch_data(url=url)
+                else:
+                    if api_params and context:
+                        json_data = self.fetch_api_data(api_params, page=i + 1, context=context)
+                    else:
+                        logger.info("Т.к. 1-я страница была неудачной - дальше смотреть не можем")
+                        break
+
+            if not html_code:
+                logger.warning(
+                    f"Не удалось получить HTML для {url}, пробую заново через {self.config.pause_between_links} сек.")
+                time.sleep(self.config.pause_between_links)
+                continue
+
+            data_from_page = self.find_json_on_page(html_code=html_code)
+
+            if i == 0:
+                search_core = data_from_page.get("searchCore") or {}
+                context = data_from_page.get("context")
+                api_params = build_api_params(search_core)
+
+            try:
+                if i == 0:
+                    catalog = data_from_page.get("catalog") or {}
+                else:
+                    catalog = json_data.get("catalog") or json_data.get("result", {}).get("catalog") or {}
+
+                ads_models = ItemsResponse(**catalog)
+            except ValidationError as err:
+                logger.error(f"При валидации объявлений произошла ошибка: {err}")
+                continue
+
+            ads = self._clean_null_ads(ads=ads_models.items)
+
+            logger.info(f"Объявлений перед чисткой {len(ads)}")
+
+            ads = self._add_seller_to_ads(ads=ads)
+
+            ads = self._add_promotion_to_ads(ads=ads)
+
+            if not ads:
+                logger.info("Объявления закончились, заканчиваю работу с данной ссылкой")
+                break
+
+            filter_ads = self.filter_ads(ads=ads)
+
+            self.notifier.notify_many(ads=filter_ads)
+
+            # Просмотры
+            filter_ads = self.parse_views(ads=filter_ads)
+
+            # Телефоны
+            filter_ads = self.parse_phone(ads=filter_ads)
+
+            if filter_ads:
+                self.__save_viewed(ads=filter_ads)
+                ads_in_link.extend(filter_ads)
+
+            logger.info(f"Пауза {self.config.pause_between_links} сек.")
+            time.sleep(self.config.pause_between_links)
+
+        if ads_in_link:
+            logger.info(f"Сохраняю {len(ads_in_link)} объявлений")
+            self.result_storage.save(ads_in_link)
+        else:
+            logger.info("Сохранять нечего")
 
     @staticmethod
     def _clean_null_ads(ads: list[Item]) -> list[Item]:
@@ -352,5 +367,5 @@ if __name__ == "__main__":
             time.sleep(config.pause_general)
         except Exception as err:
             logger.exception(err)
-            logger.error(f"Произошла ошибка {err}. Будет повторный запуск через 30 сек.")
-            time.sleep(30)
+            logger.error(f"Произошла ошибка {err}. Будет повторный запуск через {config.retry_delay} сек.")
+            time.sleep(config.retry_delay)
